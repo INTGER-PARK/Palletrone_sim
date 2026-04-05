@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'plant = plant.plant:main',
+            'palm_teleop = plant.palm_teleop:main',
         ],
     },
 )

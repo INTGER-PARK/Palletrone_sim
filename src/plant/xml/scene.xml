@@ -1,5 +1,6 @@
 <mujoco model="Palletrone">
   <include file="Palletrone.xml"/>
+  <include file="palm.xml"/>
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
@@ -17,8 +18,5 @@
   <worldbody>
     <light pos="0 0 10" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane" contype="1" conaffinity="1"/>
-
-
-
   </worldbody>
 </mujoco>

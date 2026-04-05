@@ -6,7 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 #include <palletrone_interfaces/msg/attitude_cmd.hpp>
+
+namespace
+{
+constexpr double kDegToRad = M_PI / 180.0;
+}
+
 class WrenchController : public rclcpp::Node
 {
 public:
@@ -15,7 +22,7 @@ public:
     const double KP_POS[3] = {28.0, 28.0, 20.0}; //3 3 6
     const double KI_POS[3] = {1.5, 1.5, 1.1}; //0.01 0.01 .0.01
     const double KD_POS[3] = {6.0, 6.0, 10.0};
-    const double I_MIN_POS = -5.0, I_MAX_POS = 100, OUT_MIN_POS = -200.0, OUT_MAX_POS = 200.0;
+    const double I_MIN_POS = -5.00, I_MAX_POS = 10, OUT_MIN_POS = -200.0, OUT_MAX_POS = 200.0;
 
     const double KP_ATT[3] = {3.00, 3.00, 3.00};
     const double KI_ATT[3] = {0.01, 0.01, 0.01};
@@ -50,6 +57,11 @@ public:
     pub_wrench_ = this->create_publisher<palletrone_interfaces::msg::Wrench>("/wrench", 10);
     sub_att_cmd_ = this->create_subscription<palletrone_interfaces::msg::AttitudeCmd>(
       "/att_cmd", 10, std::bind(&WrenchController::onAttCmd, this, std::placeholders::_1)); //추가
+    position_loop_enabled_ = this->declare_parameter<bool>("position_loop_enabled", true);
+    horizontal_position_loop_enabled_ = this->declare_parameter<bool>("horizontal_position_loop_enabled", true);
+    vertical_position_loop_enabled_ = this->declare_parameter<bool>("vertical_position_loop_enabled", true);
+    param_cb_handle_ = this->add_on_set_parameters_callback(
+      std::bind(&WrenchController::onSetParameters, this, std::placeholders::_1));
     pos_cmd_.setZero();
     last_time_ = this->now();
   }
@@ -66,9 +78,10 @@ private:
     //   float32 pitch_ref
     //   float32 yaw_ref
 
-    att_cmd_ << static_cast<double>(msg->roll_ref),
-                static_cast<double>(msg->pitch_ref),
-                static_cast<double>(msg->yaw_ref);
+    // /att_cmd is published in degrees; convert once at the boundary.
+    att_cmd_ << static_cast<double>(msg->roll_ref) * kDegToRad,
+                static_cast<double>(msg->pitch_ref) * kDegToRad,
+                static_cast<double>(msg->yaw_ref) * kDegToRad;
 
     have_att_cmd_ = true;
 
@@ -95,11 +108,17 @@ private:
     last_time_ = now;
     if (!(dt > 0.0) || dt > 0.2) dt = 1.0/400.0;
 
-    const Eigen::Vector3d pos_ref = have_cmd_ ? pos_cmd_ : Eigen::Vector3d::Zero();
-    Eigen::Vector3d position_pid; 
-    position_pid.x() = pid_pos_[0](pos_ref.x(), pos_.x(), vel_.x(), dt); 
-    position_pid.y() = pid_pos_[1](pos_ref.y(), pos_.y(), vel_.y(), dt); 
-    position_pid.z() = pid_pos_[2](pos_ref.z(), pos_.z(), vel_.z(), dt);
+    Eigen::Vector3d position_pid = Eigen::Vector3d::Zero();
+    if (position_loop_enabled_) {
+      const Eigen::Vector3d pos_ref = have_cmd_ ? pos_cmd_ : Eigen::Vector3d::Zero();
+      if (horizontal_position_loop_enabled_) {
+        position_pid.x() = pid_pos_[0](pos_ref.x(), pos_.x(), vel_.x(), dt);
+        position_pid.y() = pid_pos_[1](pos_ref.y(), pos_.y(), vel_.y(), dt);
+      }
+      if (vertical_position_loop_enabled_) {
+        position_pid.z() = pid_pos_[2](pos_ref.z(), pos_.z(), vel_.z(), dt);
+      }
+    }
 
     Eigen::Vector3d F_world; 
     F_world.x() = position_pid.x(); 
@@ -114,7 +133,23 @@ private:
              sy*cp,  sy*sp*sr + cy*cr,  sy*sp*cr - cy*sr,
                -sp,              cp*sr,              cp*cr;
 
-    const Eigen::Vector3d F_body = R_WB.transpose() * F_world;
+    Eigen::Vector3d F_body = R_WB.transpose() * F_world;
+    const double raw_fz_body = F_body.z();
+    F_body.z() = std::max(0.0, F_body.z());
+
+    if (raw_fz_body < 0.0) {
+      const rclcpp::Time log_now = this->now();
+      if (last_fz_clamp_log_time_.nanoseconds() == 0 ||
+          (log_now - last_fz_clamp_log_time_).seconds() >= 0.2) {
+        last_fz_clamp_log_time_ = log_now;
+        RCLCPP_WARN(
+          this->get_logger(),
+          "wrench z clamp: F_world=[%.2f %.2f %.2f] F_body_raw=[%.2f %.2f %.2f] rpy_deg=[%.2f %.2f %.2f]",
+          F_world.x(), F_world.y(), F_world.z(),
+          F_body.x(), F_body.y(), raw_fz_body,
+          rpy_.x() * 180.0 / M_PI, rpy_.y() * 180.0 / M_PI, rpy_.z() * 180.0 / M_PI);
+      }
+    }
 
     // 1) 자세 참조 벡터 선택: /att_cmd 가 없으면 [0,0,0]
     Eigen::Vector3d att_ref = have_att_cmd_ ? att_cmd_
@@ -146,11 +181,44 @@ private:
     pub_wrench_->publish(w);
   }
 
+  rcl_interfaces::msg::SetParametersResult onSetParameters(
+    const std::vector<rclcpp::Parameter>& params)
+  {
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+
+    for (const auto& param : params) {
+      if (param.get_name() == "position_loop_enabled") {
+        position_loop_enabled_ = param.as_bool();
+        RCLCPP_INFO(
+          this->get_logger(),
+          "position loop %s",
+          position_loop_enabled_ ? "enabled" : "disabled");
+      } else if (param.get_name() == "horizontal_position_loop_enabled") {
+        horizontal_position_loop_enabled_ = param.as_bool();
+        RCLCPP_INFO(
+          this->get_logger(),
+          "horizontal position loop %s",
+          horizontal_position_loop_enabled_ ? "enabled" : "disabled");
+      } else if (param.get_name() == "vertical_position_loop_enabled") {
+        vertical_position_loop_enabled_ = param.as_bool();
+        RCLCPP_INFO(
+          this->get_logger(),
+          "vertical position loop %s",
+          vertical_position_loop_enabled_ ? "enabled" : "disabled");
+      }
+    }
+
+    return result;
+  }
+
   rclcpp::Subscription<palletrone_interfaces::msg::Cmd>::SharedPtr sub_cmd_;
   rclcpp::Subscription<palletrone_interfaces::msg::PalletroneState>::SharedPtr sub_state_;
   rclcpp::Publisher<palletrone_interfaces::msg::Wrench>::SharedPtr pub_wrench_;
   rclcpp::Subscription<palletrone_interfaces::msg::AttitudeCmd>::SharedPtr   sub_att_cmd_;  // ★ 추가
+  OnSetParametersCallbackHandle::SharedPtr param_cb_handle_;
   rclcpp::Time last_time_;
+  rclcpp::Time last_fz_clamp_log_time_;
 
   Eigen::Vector3d pos_cmd_{Eigen::Vector3d::Zero()};
   Eigen::Vector3d pos_{Eigen::Vector3d::Zero()};
@@ -162,8 +230,11 @@ private:
   std::function<double(double,double,double,double)> pid_pos_[3];
   std::function<double(double,double,double,double)> pid_att_[3];
 
-  const double mass_{4.8}, grav_{9.81};
-  bool have_state_{false}, have_cmd_{false};
+  const double mass_{4.4}, grav_{9.81};
+  bool position_loop_enabled_{true};
+  bool horizontal_position_loop_enabled_{true};
+  bool vertical_position_loop_enabled_{true};
+  bool have_state_{true}, have_cmd_{true};
   bool have_att_cmd_{false};
 };
 

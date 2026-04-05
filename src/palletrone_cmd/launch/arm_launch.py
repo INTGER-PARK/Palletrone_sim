@@ -1,10 +1,27 @@
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler
+from launch.actions import ExecuteProcess, RegisterEventHandler
 from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
+from datetime import datetime
+from pathlib import Path
 
 def generate_launch_description():
-    
+    workspace_dir = Path("/home/parkjeongsu/ros2_project/Palletrone_sim")
+    bag_dir = workspace_dir / "bags"
+    bag_dir.mkdir(parents=True, exist_ok=True)
+    bag_name = str(bag_dir / f"bag_all_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+
+    bag_record = ExecuteProcess(
+        cmd=[
+            "/opt/ros/humble/bin/ros2",
+            "bag",
+            "record",
+            "-a",
+            "-o", bag_name
+        ],
+        output="screen"
+    )
+
     plant = Node(
         package="plant",
         executable="plant",  
@@ -34,6 +51,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        bag_record,
         plant,
         start_controllers_after_plant
     ])

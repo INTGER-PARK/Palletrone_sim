@@ -1,0 +1,26 @@
+<mujoco model="palm">
+  <worldbody>
+    <body name="hand_palm" mocap="true" pos="0.55 0 0.5" quat="1 0 0 0">
+      <geom
+        name="hand_palm_vis"
+        type="box"
+        size="0.02 0.45 0.45"
+        rgba="0.85 0.72 0.58 0.7"
+        contype="0"
+        conaffinity="0"/>
+      <geom
+        name="hand_palm_col"
+        type="box"
+        size="0.02 0.45 0.45"
+        rgba="1 0 0 0.25"
+        contype="1"
+        conaffinity="1"
+        condim="6"
+        friction="5.0 0.1 0.1"
+        solref="-2000 -40"
+        solimp="0.99 0.999 0.0001"
+        margin="0.002"
+        group="3"/>
+    </body>
+  </worldbody>
+</mujoco>

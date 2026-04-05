@@ -14,11 +14,19 @@ class AllocatorController : public rclcpp::Node
 public:
   static constexpr double inv_sqrt2   = 1.0 / 1.4142135623730951;
   static constexpr size_t buffer_size = 10;
+  static constexpr double deg_to_rad  = M_PI / 180.0;
 
   static constexpr double lpf_alpha = 0.01;   // LPF for tauz bias
-  static constexpr double zeta = 0.02;        // reaction torque coeff [Nm/N]
+  static constexpr double zeta = 0.02;        // reaction torque coefficient
+  static constexpr double k_thrust = 0.02;    // thrust coefficient in thrust = k_thrust * w^2
   static constexpr double r = 0.148492;
+  static constexpr double l_arm = sqrt(2)*r;
   static constexpr double r_z = 0.075;
+  static constexpr double max_motor_thrust = 50;
+  static constexpr double max_motor_speed = std::sqrt(max_motor_thrust / k_thrust);
+  static constexpr double servo_limit_deg = 60.0;
+  static constexpr double servo_limit_rad = servo_limit_deg * deg_to_rad;
+  static constexpr double servo_limit_sin = 1.0;
 
   AllocatorController() : rclcpp::Node("allocator_controller")
   {
@@ -36,10 +44,10 @@ public:
 private:
   void onState(const palletrone_interfaces::msg::PalletroneState::SharedPtr msg) 
   {
-    C2_mea_(0) = static_cast<double>(msg->servo[0]);
-    C2_mea_(1) = static_cast<double>(msg->servo[1]);
-    C2_mea_(2) = static_cast<double>(msg->servo[2]);
-    C2_mea_(3) = static_cast<double>(msg->servo[3]);
+    C2_mea_(0) = static_cast<double>(msg->servo[0]) * deg_to_rad;
+    C2_mea_(1) = static_cast<double>(msg->servo[1]) * deg_to_rad;
+    C2_mea_(2) = static_cast<double>(msg->servo[2]) * deg_to_rad;
+    C2_mea_(3) = static_cast<double>(msg->servo[3]) * deg_to_rad;
   }
 
   void onWrench(const palletrone_interfaces::msg::Wrench::SharedPtr msg)
@@ -64,33 +72,120 @@ private:
     double tauz_r_sat = std::clamp(tauz_r, -2.0, 2.0); // yaw reaction torque limit [Nm]
     double tauz_t     = tauz_bar_ + (tauz_r - tauz_r_sat);
 
-    Eigen::Vector4d B1(Wrench(0), Wrench(1), tauz_r_sat, Wrench(5));
-    Eigen::Matrix4d A1 = calc_A1(C2_mea_);
-    {
-      Eigen::FullPivLU<Eigen::Matrix4d> lu_1(A1);
-      if (lu_1.isInvertible()) C1_ = lu_1.solve(B1);
-      else C1_ = (A1.transpose()*A1 + 1e-8*Eigen::Matrix4d::Identity()).ldlt().solve(A1.transpose()*B1);
-    }
+    const Eigen::Vector4d B1(Wrench(0), Wrench(1), tauz_r_sat, Wrench(5));
+    const Eigen::Vector4d B2(Wrench(3), Wrench(4), tauz_t, 0.0);
 
-    Eigen::Vector4d B2(Wrench(3), Wrench(4), tauz_t, 0.0);
-    Eigen::Matrix4d A2 = calc_A2(C1_, C2_mea_);
-    {
-      Eigen::FullPivLU<Eigen::Matrix4d> lu_2(A2);
-      if (lu_2.isInvertible()) C2_des_ = lu_2.solve(B2);
-      else C2_des_ = (A2.transpose()*A2 + 1e-8*Eigen::Matrix4d::Identity()).ldlt().solve(A2.transpose()*B2);
-    }
+    Eigen::Matrix4d A1_mea = calc_A1(C2_mea_);
+    Eigen::Vector4d C1_raw = solve4x4(A1_mea, B1);
+    Eigen::Matrix4d A2 = calc_A2(C1_raw, C2_mea_);
+    Eigen::Vector4d S_des = solve4x4(A2, B2);
+    C2_des_ = sinToServoAngle(S_des);
+
+    Eigen::Vector4d S_cmd = S_des.cwiseMax(-servo_limit_sin).cwiseMin(servo_limit_sin);
+    Eigen::Vector4d C2_cmd = sinToServoAngle(S_cmd).cwiseMax(-servo_limit_rad).cwiseMin(servo_limit_rad);
+    Eigen::Matrix4d A1_cmd = calc_A1(C2_cmd);
+    C1_ = solve4x4(A1_cmd, B1).cwiseMin(max_motor_thrust);
 
     palletrone_interfaces::msg::Input out;
-    
-    double motor_speed[4];
-    motor_speed[0] = std::sqrt(std::max(0.0, C1_(0)/zeta));
-    motor_speed[1] = std::sqrt(std::max(0.0, C1_(1)/zeta));
-    motor_speed[2] = std::sqrt(std::max(0.0, C1_(2)/zeta));
-    motor_speed[3] = std::sqrt(std::max(0.0, C1_(3)/zeta));
 
-    out.u[0] = motor_speed[0]; out.u[1] = motor_speed[1]; out.u[2] = motor_speed[2]; out.u[3] = motor_speed[3];
-    out.u[4] = C2_des_(0); out.u[5] = C2_des_(1); out.u[6] = C2_des_(2); out.u[7] = C2_des_(3);
+    double motor_speed[4];
+    motor_speed[0] = std::sqrt(std::max(0.0, C1_(0)/k_thrust));
+    motor_speed[1] = std::sqrt(std::max(0.0, C1_(1)/k_thrust));
+    motor_speed[2] = std::sqrt(std::max(0.0, C1_(2)/k_thrust));
+    motor_speed[3] = std::sqrt(std::max(0.0, C1_(3)/k_thrust));
+
+    out.u[0] = std::clamp(motor_speed[0], 0.0, max_motor_speed);
+    out.u[1] = std::clamp(motor_speed[1], 0.0, max_motor_speed);
+    out.u[2] = std::clamp(motor_speed[2], 0.0, max_motor_speed);
+    out.u[3] = std::clamp(motor_speed[3], 0.0, max_motor_speed);
+    out.u[4] = C2_cmd(0); out.u[5] = C2_cmd(1); out.u[6] = C2_cmd(2); out.u[7] = C2_cmd(3);
     pub_input_->publish(out);
+
+    maybeLogAllocatorLimit(
+      B1, B2, C1_raw, S_des, C2_des_, C2_cmd, C1_,
+      conditionNumber(A1_mea), conditionNumber(A2), conditionNumber(A1_cmd));
+  }
+
+  Eigen::Vector4d solve4x4(const Eigen::Matrix4d& A, const Eigen::Vector4d& b) const
+  {
+    Eigen::FullPivLU<Eigen::Matrix4d> lu(A);
+    if (lu.isInvertible()) {
+      return lu.solve(b);
+    }
+    return (A.transpose()*A + 1e-8*Eigen::Matrix4d::Identity()).ldlt().solve(A.transpose()*b);
+  }
+
+  Eigen::Vector4d sinToServoAngle(const Eigen::Vector4d& sin_value) const
+  {
+    Eigen::Vector4d angle;
+    for (int i = 0; i < 4; ++i) {
+      angle(i) = std::asin(std::clamp(sin_value(i), -1.0, 1.0));
+    }
+    return angle;
+  }
+
+  double conditionNumber(const Eigen::Matrix4d& A) const
+  {
+    Eigen::JacobiSVD<Eigen::Matrix4d> svd(A);
+    const auto& singular_values = svd.singularValues();
+    const double sigma_max = singular_values.maxCoeff();
+    const double sigma_min = singular_values.minCoeff();
+    if (sigma_min <= 1e-12) {
+      return std::numeric_limits<double>::infinity();
+    }
+    return sigma_max / sigma_min;
+  }
+
+  void maybeLogAllocatorLimit(
+    const Eigen::Vector4d& b1,
+    const Eigen::Vector4d& b2,
+    const Eigen::Vector4d& c1_raw,
+    const Eigen::Vector4d& s_des,
+    const Eigen::Vector4d& c2_des,
+    const Eigen::Vector4d& c2_cmd,
+    const Eigen::Vector4d& c1_cmd,
+    double cond_a1_mea,
+    double cond_a2,
+    double cond_a1_cmd)
+  {
+    const bool servo_limited = (c2_des - c2_cmd).cwiseAbs().maxCoeff() > 1e-6;
+    const bool thrust_limited =
+      ((c1_cmd.array() < 1e-6) || (c1_cmd.array() > max_motor_thrust - 1e-6)).any();
+    const bool raw_thrust_invalid =
+      ((c1_raw.array() < 0.0) || (c1_raw.array() > max_motor_thrust)).any();
+    const bool sin_solution_limited =
+      ((s_des.array() < -servo_limit_sin) || (s_des.array() > servo_limit_sin)).any();
+
+    if (!(servo_limited || thrust_limited || raw_thrust_invalid || sin_solution_limited)) {
+      return;
+    }
+
+    const rclcpp::Time now = this->now();
+    if (last_limit_log_time_.nanoseconds() > 0 &&
+        (now - last_limit_log_time_).seconds() < 0.2) {
+      return;
+    }
+    last_limit_log_time_ = now;
+
+    const auto to_deg = [](const Eigen::Vector4d& v) {
+      return (v.array() * (180.0 / M_PI)).matrix();
+    };
+
+    RCLCPP_WARN(
+      this->get_logger(),
+      "allocator limit: B1=[%.2f %.2f %.2f %.2f] B2=[%.2f %.2f %.2f %.2f] "
+      "cond=[A1_mea %.2e A2 %.2e A1_cmd %.2e] "
+      "thrust_raw=[%.2f %.2f %.2f %.2f] s_des=[%.3f %.3f %.3f %.3f] "
+      "servo_des_deg=[%.2f %.2f %.2f %.2f] servo_cmd_deg=[%.2f %.2f %.2f %.2f] "
+      "thrust_cmd=[%.2f %.2f %.2f %.2f]",
+      b1(0), b1(1), b1(2), b1(3),
+      b2(0), b2(1), b2(2), b2(3),
+      cond_a1_mea, cond_a2, cond_a1_cmd,
+      c1_raw(0), c1_raw(1), c1_raw(2), c1_raw(3),
+      s_des(0), s_des(1), s_des(2), s_des(3),
+      to_deg(c2_des)(0), to_deg(c2_des)(1), to_deg(c2_des)(2), to_deg(c2_des)(3),
+      to_deg(c2_cmd)(0), to_deg(c2_cmd)(1), to_deg(c2_cmd)(2), to_deg(c2_cmd)(3),
+      c1_cmd(0), c1_cmd(1), c1_cmd(2), c1_cmd(3));
   }
 
   Eigen::Matrix4d calc_A1(const Eigen::Vector4d& C2) 
@@ -147,15 +242,15 @@ private:
     A2(1,2) =  inv_sqrt2 * f3;
     A2(1,3) = -inv_sqrt2 * f4;
 
-    A2(2,0) = inv_sqrt2 * ( +pcx + pcy) * s1 + inv_sqrt2 * ( -(+r) - (+r) ) * f1;
-    A2(2,1) = inv_sqrt2 * ( -pcx + pcy) * s2 + inv_sqrt2 * (  (-r) - (+r) ) * f2;
-    A2(2,2) = inv_sqrt2 * ( -pcx - pcy) * s3 + inv_sqrt2 * (  (-r) + (-r) ) * f3;
-    A2(2,3) = inv_sqrt2 * ( +pcx - pcy) * s4 + inv_sqrt2 * ( -(+r) + (-r) ) * f4;
+    A2(2,0) = inv_sqrt2 * ( +pcx + pcy) * s1 + (-(+l_arm) ) * f1;
+    A2(2,1) = inv_sqrt2 * ( -pcx + pcy) * s2 + (-(+l_arm) ) * f2;
+    A2(2,2) = inv_sqrt2 * ( -pcx - pcy) * s3 + ((-l_arm) ) * f3;
+    A2(2,3) = inv_sqrt2 * ( +pcx - pcy) * s4 + ((-l_arm)) * f4;
 
-    A2(3,0) = +inv_sqrt2 * ( -(+r) - (+r) ) * f1;
-    A2(3,1) = -inv_sqrt2 * ( +(-r) - (+r) ) * f2;
-    A2(3,2) = +inv_sqrt2 * ( +(-r) + (-r) ) * f3;
-    A2(3,3) = -inv_sqrt2 * ( -(+r) + (-r) ) * f4;
+    A2(3,0) = +1 * ( -(+l_arm) - (+l_arm) ) * f1;
+    A2(3,1) = -1* ( +(-l_arm) - (+l_arm) ) * f2;
+    A2(3,2) = +1 * ( +(-l_arm) + (-l_arm) ) * f3;
+    A2(3,3) = -1 * ( -(+l_arm) + (-l_arm) ) * f4;
 
     return A2;
   }
@@ -169,6 +264,7 @@ private:
   size_t buffer_index_{0};
   double dt_sum_{0.0};
   double filtered_frequency_{0.0};
+  rclcpp::Time last_limit_log_time_;
 
   double tauz_bar_{0.0};
   Eigen::Vector4d C1_{Eigen::Vector4d::Zero()};

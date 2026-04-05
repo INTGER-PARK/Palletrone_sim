@@ -15,7 +15,6 @@ matlab/
 src/palletrone_cmd/launch/__pycache__/
 src/plant/plant/__pycache__/palm_teleop.cpython-310.pyc
 MJDATA.TXT
-
-
+bags/
 # IDE 설정 파일 (VS Code 등)
 .vscode/

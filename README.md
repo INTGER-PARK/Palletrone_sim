@@ -87,41 +87,56 @@ The MATLAB script creates these figures when the corresponding CSV files exist:
 ```text
 Sim_palletrone/
 └── src/
-    ├── palletrone_cmd/
-    │   ├── CMakeLists.txt
-    │   ├── launch/
-    │   │   ├── arm_launch.py
-    │   │   └── pt_launch.py
-    │   ├── package.xml
-    │   └── src/
-    │       ├── attitude_sweep_cmd.cpp
-    │       └── position_cmd.cpp
-    │
-    ├── palletrone_controller/
-    │   ├── CMakeLists.txt
-    │   ├── package.xml
-    │   └── src/
-    │       ├── allocator_controller.cpp
-    │       └── wrench_controller.cpp
-    │
-    ├── palletrone_interfaces/
-    │   ├── CMakeLists.txt
-    │   ├── msg/
-    │   │   ├── AttitudeCmd.msg
-    │   │   ├── Cmd.msg
-    │   │   ├── Input.msg
-    │   │   ├── PalletroneState.msg
-    │   │   └── Wrench.msg
-    │   └── package.xml
-    │
-    └── plant/
-        ├── plant/
-        │   ├── __init__.py
-        │   ├── plant.py
-        │   └── __pycache__/
-        │       ├── __init__.cpython-310.pyc
-        │       └── plant.cpython-310.pyc
-        ├── resource/
-        ├── test/
-        ├── setup.cfg
-        └── setup.py
+	├── palletrone_cmd
+	│   ├── CMakeLists.txt
+	│   ├── launch
+	│   │   ├── arm_launch.py
+	│   │   ├── pt_launch.py
+	│   │   └── __pycache__
+	│   │       └── arm_launch.cpython-310.pyc
+	│   ├── package.xml
+	│   └── src
+	│       ├── attitude_sweep_cmd.cpp
+	│       └── position_cmd.cpp
+	├── palletrone_controller
+	│   ├── CMakeLists.txt
+	│   ├── package.xml
+	│   └── src
+	│       ├── allocator_controller.cpp
+	│       └── wrench_controller.cpp
+	├── palletrone_interfaces
+	│   ├── CMakeLists.txt
+	│   ├── msg
+	│   │   ├── AttitudeCmd.msg
+	│   │   ├── Cmd.msg
+	│   │   ├── Input.msg
+	│   │   ├── PalletroneState.msg
+	│   │   └── Wrench.msg
+	│   └── package.xml
+	└── plant
+	    ├── package.xml
+	    ├── plant
+	    │   ├── __init__.py
+	    │   ├── palm_teleop.py
+	    │   ├── plant.py
+	    │   └── __pycache__
+	    │       ├── __init__.cpython-310.pyc
+	    │       ├── palm_teleop.cpython-310.pyc
+	    │       └── plant.cpython-310.pyc
+	    ├── resource
+	    │   └── plant
+	    ├── setup.cfg
+	    ├── setup.py
+	    ├── test
+	    │   ├── test_copyright.py
+	    │   ├── test_flake8.py
+	    │   └── test_pep257.py
+	    └── xml
+		├── BODY.stl
+		├── Palletrone.xml
+		├── palm.xml
+		├── PROP.stl
+		├── scene.xml
+		└── STLchanger.py
+
+

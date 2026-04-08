@@ -26,6 +26,13 @@ def generate_launch_description():
         output="screen"
     )
 
+    wrench_observer = Node(
+        package="palletrone_controller",
+        executable="wrench_observer",
+        name="wrench_observer",
+        output="screen"
+    )
+
     position_cmd = Node(
         package="palletrone_cmd",
         executable="position_cmd",
@@ -36,7 +43,7 @@ def generate_launch_description():
     start_controllers_after_plant = RegisterEventHandler(
         OnProcessStart(
             target_action=plant,
-            on_start=[wrench_controller, allocator_controller]
+            on_start=[wrench_controller, allocator_controller, wrench_observer]
         )
     )
 

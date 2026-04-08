@@ -8,7 +8,7 @@
     <body name="base" pos="0 0 0.145">
       <freejoint name="root"/>
       <inertial pos="0 0 0" quat="1 0 0 0" mass="4.00" diaginertia="0.360702 0.360702 0.660702"/>
-      <geom name="base_vis" type="mesh" mesh="body_mesh" rgba="0.5 0.5 0.3 1" contype="0" conaffinity="0"/>
+      <geom name="base_vis" type="mesh" mesh="body_mesh" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0"/>
       <geom name="base_col" type="box" size="0.34 0.34 0.125" pos="0 0 0.01"
             rgba="1 0 0 0.25" contype="1" conaffinity="1" condim="6"
             friction="5.0 0.1 0.1"
@@ -24,7 +24,7 @@
         <body name="prop1_body" pos="0 0 -0.075">
           <geom name="servo1_vis" type="mesh" mesh="servo_prop_mesh" mass="0.1"
                 quat="0.7071068 0 0 0.7071068"
-                rgba="0.85 0.85 0.0 1" contype="0" conaffinity="0"/>
+                rgba="0.85 0.55 0.0 1" contype="0" conaffinity="0"/>
           <site name="prop1_site" pos="0 0 0" size="0.004" type="sphere"/>
         </body>
       </body>
@@ -34,7 +34,7 @@
         <body name="prop2_body" pos="0 0 -0.075">
           <geom name="servo2_vis" type="mesh" mesh="servo_prop_mesh" mass="0.1"
                 quat="0.7071068 0 0 0.7071068"
-                rgba="0.85 0.85 0.0 1" contype="0" conaffinity="0"/>
+                rgba="0.85 0.55 0.0 1" contype="0" conaffinity="0"/>
           <site name="prop2_site" pos="0 0 0" size="0.004" type="sphere"/>
         </body>
       </body>
@@ -44,7 +44,7 @@
         <body name="prop3_body" pos="0 0 -0.075">
           <geom name="servo3_vis" type="mesh" mesh="servo_prop_mesh" mass="0.1"
                 quat="0.7071068 0 0 0.7071068"
-                rgba="0.85 0.85 0.0 1" contype="0" conaffinity="0"/>
+                rgba="0.85 0.55 0.0 1" contype="0" conaffinity="0"/>
           <site name="prop3_site" pos="0 0 0" size="0.004" type="sphere"/>
         </body>
       </body>
@@ -54,7 +54,7 @@
         <body name="prop4_body" pos="0 0 -0.075">
           <geom name="servo4_vis" type="mesh" mesh="servo_prop_mesh" mass="0.1"
                 quat="0.7071068 0 0 0.7071068"
-                rgba="0.85 0.85 0.0 1" contype="0" conaffinity="0"/>
+                rgba="0.85 0.55 0.0 1" contype="0" conaffinity="0"/>
           <site name="prop4_site" pos="0 0 0" size="0.004" type="sphere"/>
         </body>
       </body>

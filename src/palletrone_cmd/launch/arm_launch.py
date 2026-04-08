@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 def generate_launch_description():
-    workspace_dir = Path("/home/parkjeongsu/ros2_project/Palletrone_sim")
+    workspace_dir = Path("/home/parkjeongsu/ros2_project/PPP_sim")
     bag_dir = workspace_dir / "bags"
     bag_dir.mkdir(parents=True, exist_ok=True)
     bag_name = str(bag_dir / f"bag_all_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
@@ -43,10 +43,17 @@ def generate_launch_description():
         output="screen"
     )
 
+    wrench_observer = Node(
+        package="palletrone_controller",
+        executable="wrench_observer",
+        name="wrench_observer",
+        output="screen"
+    )
+
     start_controllers_after_plant = RegisterEventHandler(
         OnProcessStart(
             target_action=plant,
-            on_start=[wrench_controller, allocator_controller]
+            on_start=[wrench_controller, allocator_controller, wrench_observer]
         )
     )
 

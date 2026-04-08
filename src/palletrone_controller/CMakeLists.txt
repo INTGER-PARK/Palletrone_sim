@@ -21,9 +21,15 @@ add_executable(allocator_controller src/allocator_controller.cpp)
 ament_target_dependencies(allocator_controller rclcpp palletrone_interfaces)
 target_link_libraries(allocator_controller Eigen3::Eigen)
 
+# wrench_observer
+add_executable(wrench_observer src/wrench_observer.cpp)
+ament_target_dependencies(wrench_observer rclcpp palletrone_interfaces)
+target_link_libraries(wrench_observer Eigen3::Eigen)
+
 install(TARGETS
   wrench_controller
   allocator_controller
+  wrench_observer
   DESTINATION lib/${PROJECT_NAME}
 )
 

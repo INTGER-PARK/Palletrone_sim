@@ -36,10 +36,12 @@ This records all topics including:
 - `/att_cmd`
 - `/wrench`
 - `/input`
-- `/actuator_debug/servo_qpos`
-- `/actuator_debug/requested_servo`
-- `/actuator_debug/applied_bldc`
-- `/actuator_debug/requested_bldc`
+- `/actuator_debug/cmd_servo`
+- `/actuator_debug/real_servo`
+- `/actuator_debug/cmd_bldc`
+- `/actuator_debug/real_bldc`
+- `/external_wrench_cmd`
+- `/external_wrench_hat`
 
 ### 3. Convert Bag To CSV
 
@@ -58,7 +60,7 @@ This generates per-topic CSV files such as:
 - `csv_out/att_cmd.csv`
 - `csv_out/wrench.csv`
 - `csv_out/input.csv`
-- `csv_out/actuator_debug__servo_qpos.csv`
+- `csv_out/actuator_debug__real_servo.csv`
 
 ### 4. Plot In MATLAB
 
@@ -71,9 +73,10 @@ run("matlab/plot_tracking.m")
 The MATLAB script creates these figures when the corresponding CSV files exist:
 - Position tracking: `/cmd` desired vs `/palletrone_state` real
 - Attitude tracking: `/att_cmd` desired vs `/palletrone_state` real
-- Servo tracking: requested vs measured servo angle
-- BLDC requested vs applied thrust
+- Servo tracking: cmd vs real servo angle
+- BLDC cmd vs real thrust
 - Wrench command history
+- External wrench estimate: command ground truth vs `/external_wrench_hat`
 - Allocator input command history
 
 ### 5. Notes
@@ -81,6 +84,7 @@ The MATLAB script creates these figures when the corresponding CSV files exist:
 - `AttitudeCmd` is logged in degrees.
 - `/palletrone_state.rpy` is logged in radians, and converted to degrees in MATLAB.
 - `wrench` and `input` currently do not have a direct measured feedback topic pair, so they are plotted as command histories rather than desired-vs-real overlays.
+- `external_wrench_cmd` publishes a body-frame ground-truth disturbance. Key map: `q/a` Mx, `w/s` My, `e/d` Mz, `i/k` Fx, `j/l` Fy, `u/o` Fz, `z` reset.
 
 ## Code Structure
 
@@ -138,5 +142,3 @@ Sim_palletrone/
 		├── PROP.stl
 		├── scene.xml
 		└── STLchanger.py
-
-

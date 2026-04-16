@@ -11,6 +11,7 @@
 
   <depend>rclcpp</depend>
   <depend>palletrone_interfaces</depend>
+  <depend>std_msgs</depend>
 
   <build_depend>eigen3_cmake_module</build_depend>
   <build_depend>Eigen3</build_depend>

@@ -186,7 +186,8 @@ def main():
 
     topic_types = reader.get_all_topics_and_types()
     type_map = {topic.name: topic.type for topic in topic_types}
-    merged_csv_path = out_dir / "all_topics.csv"
+    csv_filename = f"{bag_dir.name}.csv"
+    merged_csv_path = out_dir / csv_filename
     writer = None
 
     while reader.has_next():

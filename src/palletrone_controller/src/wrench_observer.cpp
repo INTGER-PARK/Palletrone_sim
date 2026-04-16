@@ -14,6 +14,15 @@ class WrenchObserver : public rclcpp::Node
 public:
   static constexpr double kDegToRad = M_PI / 180.0;
 
+  // Tune these default K_I values first. They are diagonal observer gains [1/s].
+  // Larger values make /external_wrench_hat follow the raw estimate faster.
+  static constexpr double kDefaultKiForceX = 10.0;
+  static constexpr double kDefaultKiForceY = 10.0;
+  static constexpr double kDefaultKiForceZ = 10.0;
+  static constexpr double kDefaultKiMomentX = 10.0;
+  static constexpr double kDefaultKiMomentY = 10.0;
+  static constexpr double kDefaultKiMomentZ = 10.0;
+
   WrenchObserver()
   : rclcpp::Node("wrench_observer")
   {
@@ -24,8 +33,19 @@ public:
     //   thrust_coefficient, reaction_torque_coefficient,
     //   arm_radius, rotor_z_offset, com_x, com_y, com_z.
     //
+    // Momentum-observer tuning parameters:
+    //   k_i_force_x, k_i_force_y, k_i_force_z,
+    //   k_i_moment_x, k_i_moment_y, k_i_moment_z.
+    //
     // In other words, this node assumes the plant dynamics model is already known
     // and that only the external wrench is unknown.
+    k_i_force_.x() = this->declare_parameter<double>("k_i_force_x", kDefaultKiForceX);
+    k_i_force_.y() = this->declare_parameter<double>("k_i_force_y", kDefaultKiForceY);
+    k_i_force_.z() = this->declare_parameter<double>("k_i_force_z", kDefaultKiForceZ);
+    k_i_moment_.x() = this->declare_parameter<double>("k_i_moment_x", kDefaultKiMomentX);
+    k_i_moment_.y() = this->declare_parameter<double>("k_i_moment_y", kDefaultKiMomentY);
+    k_i_moment_.z() = this->declare_parameter<double>("k_i_moment_z", kDefaultKiMomentZ);
+
     mass_ = this->declare_parameter<double>("mass", 4.4);
     gravity_ = this->declare_parameter<double>("gravity", 9.81);
     inertia_xx_ = this->declare_parameter<double>("inertia_xx", 0.360702);
@@ -38,7 +58,6 @@ public:
     com_x_ = this->declare_parameter<double>("com_x", 0.0);
     com_y_ = this->declare_parameter<double>("com_y", 0.0);
     com_z_ = this->declare_parameter<double>("com_z", 0.0);
-    observer_bandwidth_ = this->declare_parameter<double>("observer_bandwidth", 20.0);
     state_dt_ = this->declare_parameter<double>("state_dt", 1.0 / 400.0);
 
     inertia_body_.setZero();
@@ -51,10 +70,9 @@ public:
     sub_state_ = this->create_subscription<palletrone_interfaces::msg::PalletroneState>(
       "/palletrone_state", 10, std::bind(&WrenchObserver::onState, this, std::placeholders::_1));
 
-    pub_external_wrench_ = this->create_publisher<palletrone_interfaces::msg::Wrench>(
-      "/external_wrench", 10);
-    pub_external_wrench_raw_ = this->create_publisher<palletrone_interfaces::msg::Wrench>(
-      "/external_wrench_raw", 10);
+    pub_external_wrench_hat = this->create_publisher<palletrone_interfaces::msg::Wrench>("/external_wrench_hat", 10);
+    pub_external_wrench_raw_ = this->create_publisher<palletrone_interfaces::msg::Wrench>("/external_wrench_raw", 10);
+
   }
 
 private:
@@ -82,6 +100,11 @@ private:
     // Therefore, if an external EKF/state estimator exists in the overall system,
     // this node is not connected to it explicitly. It simply trusts the contents of
     // /palletrone_state as the available state estimate.
+
+    if (!have_input_) {
+      have_prev_state_ = false;
+      return;
+    }
 
     // State message conventions used here:
     // - vel: linear velocity expressed in world frame W, v_W
@@ -149,7 +172,7 @@ private:
     prev_linear_momentum_ = linear_momentum;
     prev_angular_momentum_ = angular_momentum;
 
-    const ActuationWrench actuation = have_input_ ? computeActuationWrench(servo_rad) : ActuationWrench{};
+    const ActuationWrench actuation = computeActuationWrench(servo_rad);
 
     // Gravity in world frame:
     //   g_W = [0, 0, -m g]^T
@@ -173,15 +196,16 @@ private:
     const Eigen::Vector3d raw_moment_body =
       angular_momentum_dot + omega_body.cross(angular_momentum) - actuation.moment_body;
 
-    // First-order low-pass filtering of the raw estimate:
-    //   w_hat[k] = w_hat[k-1] + alpha * (w_raw[k] - w_hat[k-1])
-    //   alpha = clamp(bandwidth * dt, 0, 1)
-    const double alpha = std::clamp(observer_bandwidth_ * dt, 0.0, 1.0);
-    prev_external_force_body_ += alpha * (raw_force_body - prev_external_force_body_);
-    prev_external_moment_body_ += alpha * (raw_moment_body - prev_external_moment_body_);
+    // Diagonal momentum-observer gain with exact first-order discretization:
+    //   alpha = 1 - exp(-K_I * dt)
+    // This keeps K_I as the observer bandwidth [1/s] without adding a separate LPF.
+    const Eigen::Vector3d alpha_force = observerAlpha(k_i_force_, dt);
+    const Eigen::Vector3d alpha_moment = observerAlpha(k_i_moment_, dt);
+    prev_external_force_body_ += alpha_force.cwiseProduct(raw_force_body - prev_external_force_body_);
+    prev_external_moment_body_ += alpha_moment.cwiseProduct(raw_moment_body - prev_external_moment_body_);
 
     publishWrench(pub_external_wrench_raw_, raw_force_body, raw_moment_body);
-    publishWrench(pub_external_wrench_, prev_external_force_body_, prev_external_moment_body_);
+    publishWrench(pub_external_wrench_hat, prev_external_force_body_, prev_external_moment_body_);
   }
 
   struct ActuationWrench
@@ -211,6 +235,15 @@ private:
       sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr,
       -sp, cp * sr, cp * cr;
     return r_wb;
+  }
+
+  Eigen::Vector3d observerAlpha(const Eigen::Vector3d & gain, double dt) const
+  {
+    Eigen::Vector3d alpha;
+    for (int i = 0; i < 3; ++i) {
+      alpha(i) = 1.0 - std::exp(-std::max(0.0, gain(i)) * std::max(0.0, dt));
+    }
+    return alpha;
   }
 
   Eigen::Matrix4d calcA1(const Eigen::Vector4d & servo_angle) const
@@ -348,8 +381,9 @@ private:
 
     ActuationWrench out;
     // All outputs here are expressed in body frame B.
-    out.force_body << b2(0), b2(1), b1(3);
-    out.moment_body << b1(0), b1(1), b1(2) + b2(2);
+    out.force_body << b2(0), b2(1), b1(3); // B1 = [Mx_B, My_B, Mz_reaction_B, Fz_B]^T
+    //
+    out.moment_body << b1(0), b1(1), b1(2) + b2(2); //B2 = [Fx_B, Fy_B, Mz_tilt_B, 0]^T
     return out;
   }
 
@@ -370,7 +404,7 @@ private:
 
   rclcpp::Subscription<palletrone_interfaces::msg::Input>::SharedPtr sub_input_;
   rclcpp::Subscription<palletrone_interfaces::msg::PalletroneState>::SharedPtr sub_state_;
-  rclcpp::Publisher<palletrone_interfaces::msg::Wrench>::SharedPtr pub_external_wrench_;
+  rclcpp::Publisher<palletrone_interfaces::msg::Wrench>::SharedPtr pub_external_wrench_hat;
   rclcpp::Publisher<palletrone_interfaces::msg::Wrench>::SharedPtr pub_external_wrench_raw_;
 
   double mass_{4.4};
@@ -385,7 +419,14 @@ private:
   double com_x_{0.0};
   double com_y_{0.0};
   double com_z_{0.0};
-  double observer_bandwidth_{20.0};
+  Eigen::Vector3d k_i_force_{
+    kDefaultKiForceX,
+    kDefaultKiForceY,
+    kDefaultKiForceZ};
+  Eigen::Vector3d k_i_moment_{
+    kDefaultKiMomentX,
+    kDefaultKiMomentY,
+    kDefaultKiMomentZ};
   double state_dt_{1.0 / 400.0};
 
   Eigen::Matrix3d inertia_body_{Eigen::Matrix3d::Zero()};

@@ -1,0 +1,365 @@
+clear; clc; close all;
+%-----------------------------------%
+% CSV 불러오기
+%-----------------------------------%
+csv_dir = "csv_out";
+csv_files = dir(fullfile(csv_dir, "bag_all_20260415_111836.csv"));
+if ~isempty(csv_files)
+    [~, newest_idx] = max([csv_files.datenum]);
+    csv_path = fullfile(csv_files(newest_idx).folder, csv_files(newest_idx).name);
+else
+    csv_path = fullfile(csv_dir, "all_topics.csv");
+end
+assert(isfile(csv_path), "Missing file: %s", csv_path);
+fprintf("Reading CSV: %s\n", csv_path);
+all_topics = readtable(csv_path);
+%-----------------------------------%
+% 토픽별 데이터 분리
+%-----------------------------------%
+topic_names = string(all_topics.topic_name);
+var_names = string(all_topics.Properties.VariableNames);
+state_mask      = strcmp(topic_names, "/palletrone_state");
+cmd_mask        = strcmp(topic_names, "/cmd");
+att_mask        = strcmp(topic_names, "/att_cmd");
+wrench_mask     = strcmp(topic_names, "/wrench");
+input_mask      = strcmp(topic_names, "/input");
+servo_real_mask = strcmp(topic_names, "/actuator_debug/real_servo");
+servo_cmd_mask  = strcmp(topic_names, "/actuator_debug/cmd_servo");
+bldc_cmd_mask   = strcmp(topic_names, "/actuator_debug/cmd_bldc");
+bldc_real_mask  = strcmp(topic_names, "/actuator_debug/real_bldc");
+wrench_hat_mask = strcmp(topic_names, "/external_wrench_hat");
+wrench_cmd_mask = strcmp(topic_names, "/external_wrench_cmd");
+state     = all_topics(state_mask, :);
+cmd       = all_topics(cmd_mask, :);
+att       = all_topics(att_mask, :);
+wrench    = all_topics(wrench_mask, :);
+input_cmd = all_topics(input_mask, :);
+servo_real = all_topics(servo_real_mask, :);
+servo_cmd = all_topics(servo_cmd_mask, :);
+bldc_cmd  = all_topics(bldc_cmd_mask, :);
+bldc_real = all_topics(bldc_real_mask, :);
+wrench_hat = all_topics(wrench_hat_mask, :);
+wrench_cmd_gt = all_topics(wrench_cmd_mask, :);
+%-----------------------------------%
+% 시간축 맞추기
+%-----------------------------------%
+t0 = state.t_sec(1);
+ts = state.t_sec - t0;
+tc = cmd.t_sec - t0;
+ta = att.t_sec - t0;
+tw = wrench.t_sec - t0;
+ti = input_cmd.t_sec - t0;
+tr_servo = servo_real.t_sec - t0;
+tc_servo = servo_cmd.t_sec - t0;
+tr_bldc  = bldc_real.t_sec - t0;
+tc_bldc  = bldc_cmd.t_sec - t0;
+te_hat = wrench_hat.t_sec - t0;
+te_cmd = wrench_cmd_gt.t_sec - t0;
+%-----------------------------------%
+% Position Desired vs Real
+%-----------------------------------%
+x_des = interp1(tc, cmd.cmd__pos_cmd_0, ts, "previous", "extrap");
+y_des = interp1(tc, cmd.cmd__pos_cmd_1, ts, "previous", "extrap");
+z_des = interp1(tc, cmd.cmd__pos_cmd_2, ts, "previous", "extrap");
+x_real = state.palletrone_state__pos_0;
+y_real = state.palletrone_state__pos_1;
+z_real = state.palletrone_state__pos_2;
+figure("Name", "Position", "Color", "w");
+sgtitle("Position", "FontSize", 12, "FontWeight", "bold");
+subplot(3,1,1);
+plot(ts, x_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, x_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("x [m]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,1,2);
+plot(ts, y_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, y_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("y [m]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,1,3);
+plot(ts, z_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, z_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("z [m]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+%-----------------------------------%
+% Attitude Desired vs Real
+%-----------------------------------%
+has_att_cmd = ~isempty(att) && all(ismember( ...
+    ["att_cmd__roll_ref", "att_cmd__pitch_ref", "att_cmd__yaw_ref"], var_names));
+if has_att_cmd
+    roll_des  = interp1(ta, att.att_cmd__roll_ref,  ts, "previous", "extrap");
+    pitch_des = interp1(ta, att.att_cmd__pitch_ref, ts, "previous", "extrap");
+    yaw_des   = interp1(ta, att.att_cmd__yaw_ref,   ts, "previous", "extrap");
+else
+    roll_des = zeros(size(ts));
+    pitch_des = zeros(size(ts));
+    yaw_des = zeros(size(ts));
+    warning("Using zero attitude command because /att_cmd rows or att_cmd columns are missing.");
+end
+roll_real  = rad2deg(state.palletrone_state__rpy_0);
+pitch_real = rad2deg(state.palletrone_state__rpy_1);
+yaw_real   = rad2deg(state.palletrone_state__rpy_2);
+figure("Name", "Attitude", "Color", "w");
+sgtitle("Attitude", "FontSize", 12, "FontWeight", "bold");
+subplot(3,1,1);
+plot(ts, roll_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, roll_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("roll [deg]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,1,2);
+plot(ts, pitch_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, pitch_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("pitch [deg]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,1,3);
+plot(ts, yaw_des, "--", "LineWidth", 1.5, "DisplayName", "des"); hold on;
+plot(ts, yaw_real, "-", "LineWidth", 1.5, "DisplayName", "real");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("yaw [deg]", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+%-----------------------------------%
+% Servo Tracking
+%-----------------------------------%
+servo1_cmd = servo_cmd.actuator_debug__cmd_servo__data_0;
+servo2_cmd = servo_cmd.actuator_debug__cmd_servo__data_1;
+servo3_cmd = servo_cmd.actuator_debug__cmd_servo__data_2;
+servo4_cmd = servo_cmd.actuator_debug__cmd_servo__data_3;
+servo1_real = servo_real.actuator_debug__real_servo__data_0;
+servo2_real = servo_real.actuator_debug__real_servo__data_1;
+servo3_real = servo_real.actuator_debug__real_servo__data_2;
+servo4_real = servo_real.actuator_debug__real_servo__data_3;
+figure("Name", "Servo Angle", "Color", "w");
+sgtitle("Servo Angle", "FontSize", 12, "FontWeight", "bold");
+subplot(4,1,1);
+plot(tc_servo, servo1_cmd, "b--", "LineWidth", 1.5, "DisplayName", "cmd"); hold on;
+plot(tr_servo, servo1_real, "-", "LineWidth", 1.5, "DisplayName", "real"); 
+grid on;
+xlabel("time[s]", "FontSize", 8,"FontWeight", "bold");
+ylabel("servo1[deg]", "FontSize", 8, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,2);
+plot(tc_servo, servo2_cmd, "b--", "LineWidth", 1.5, "DisplayName", "cmd"); hold on;
+plot(tr_servo, servo2_real, "-", "LineWidth", 1.5, "DisplayName", "real"); 
+grid on;
+xlabel("time[s]", "FontSize", 8, "FontWeight", "bold");
+ylabel("servo2[deg]", "FontSize", 8, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,3);
+plot(tc_servo, servo3_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd"); hold on;
+plot(tr_servo, servo3_real, "-", "LineWidth", 1.5, "DisplayName", "real"); 
+grid on;
+xlabel("time [s]", "FontSize", 8, "FontWeight", "bold");
+ylabel("servo3[deg]", "FontSize", 8, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,4);
+plot(tc_servo, servo4_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd"); hold on;
+plot(tr_servo, servo4_real, "-", "LineWidth", 1.5, "DisplayName", "real"); 
+grid on;
+xlabel("time [s]", "FontSize", 8, "FontWeight", "bold");
+ylabel("servo4[deg]", "FontSize", 8, "FontWeight", "bold");
+legend("Location", "northeast");
+%-----------------------------------%
+% BLDC Cmd vs Real
+%-----------------------------------%
+bldc1_cmd = bldc_cmd.actuator_debug__cmd_bldc__data_0;
+bldc2_cmd = bldc_cmd.actuator_debug__cmd_bldc__data_1;
+bldc3_cmd = bldc_cmd.actuator_debug__cmd_bldc__data_2;
+bldc4_cmd = bldc_cmd.actuator_debug__cmd_bldc__data_3;
+bldc1_real = bldc_real.actuator_debug__real_bldc__data_0;
+bldc2_real = bldc_real.actuator_debug__real_bldc__data_1;
+bldc3_real = bldc_real.actuator_debug__real_bldc__data_2;
+bldc4_real = bldc_real.actuator_debug__real_bldc__data_3;
+figure("Name", "BLDC Cmd vs Real", "Color", "w");
+sgtitle("BLDC Cmd vs Real", "FontSize", 12, "FontWeight", "bold");
+subplot(4,1,1);
+plot(tr_bldc, bldc1_real, "-", "LineWidth", 1.5, "DisplayName", "real"); hold on;
+plot(tc_bldc, bldc1_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("motor1", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,2);
+plot(tr_bldc, bldc2_real, "-", "LineWidth", 1.5, "DisplayName", "real"); hold on;
+plot(tc_bldc, bldc2_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("motor2", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,3);
+plot(tr_bldc, bldc3_real, "-", "LineWidth", 1.5, "DisplayName", "real"); hold on;
+plot(tc_bldc, bldc3_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("motor3", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(4,1,4);
+plot(tr_bldc, bldc4_real, "-", "LineWidth", 1.5, "DisplayName", "real"); hold on;
+plot(tc_bldc, bldc4_cmd, "--", "LineWidth", 1.5, "DisplayName", "cmd");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("motor4", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+%-----------------------------------%
+% Wrench Command
+%-----------------------------------%
+Mx = wrench.wrench__moment_0;
+My = wrench.wrench__moment_1;
+Mz = wrench.wrench__moment_2;
+Fx = wrench.wrench__force_0;
+Fy = wrench.wrench__force_1;
+Fz = wrench.wrench__force_2;
+figure("Name", "Wrench Command", "Color", "w");
+sgtitle("Wrench Command", "FontSize", 12, "FontWeight", "bold");
+subplot(3,2,1);
+plot(tw, Mx, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Mx", "FontSize", 10, "FontWeight", "bold");
+subplot(3,2,3);
+plot(tw, My, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("My", "FontSize", 10, "FontWeight", "bold");
+subplot(3,2,5);
+plot(tw, Mz, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Mz", "FontSize", 10, "FontWeight", "bold");
+subplot(3,2,2);
+plot(tw, Fx, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fx", "FontSize", 10, "FontWeight", "bold");
+subplot(3,2,4);
+plot(tw, Fy, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fy", "FontSize", 10, "FontWeight", "bold");
+subplot(3,2,6);
+plot(tw, Fz, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fz", "FontSize", 10, "FontWeight", "bold");
+%-----------------------------------%
+% Allocator Input Command
+%-----------------------------------%
+w1 = input_cmd.input__u_0;
+w2 = input_cmd.input__u_1;
+w3 = input_cmd.input__u_2;
+w4 = input_cmd.input__u_3;
+servo1_cmd = rad2deg(input_cmd.input__u_4);
+servo2_cmd = rad2deg(input_cmd.input__u_5);
+servo3_cmd = rad2deg(input_cmd.input__u_6);
+servo4_cmd = rad2deg(input_cmd.input__u_7);
+figure("Name", "Allocator Input Command", "Color", "w");
+sgtitle("Allocator Input Command", "FontSize", 10, "FontWeight", "bold");
+subplot(4,2,1);
+plot(ti, w1, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time[s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("$\tau_r$", 'Interpreter', 'latex', "FontSize", 14, "FontWeight", "bold");
+subplot(4,2,2);
+plot(ti, servo1_cmd, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time[s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("servo1[deg]", "FontSize", 8, "FontWeight", "bold");
+subplot(4,2,3);
+plot(ti, w2, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time[s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("$\tau_p$",'Interpreter', 'latex', "FontSize", 14, "FontWeight", "bold");
+subplot(4,2,4);
+plot(ti, servo2_cmd, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time[s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("servo2[deg]", "FontSize", 8, "FontWeight", "bold");
+subplot(4,2,5);
+plot(ti, w3, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("$\tau_y$", 'Interpreter', 'latex', "FontSize", 14, "FontWeight", "bold");
+subplot(4,2,6);
+plot(ti, servo3_cmd, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("servo3[deg]", "FontSize", 8, "FontWeight", "bold");
+subplot(4,2,7);
+plot(ti, w4, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("F_{des}", "FontSize", 12, "FontWeight", "bold");
+subplot(4,2,8);
+plot(ti, servo4_cmd, "-", "LineWidth", 1.5);
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("servo4[deg]", "FontSize", 8, "FontWeight", "bold");
+% External wrench estimate
+%-----------------------------------%
+ Mx_hat = wrench_hat.external_wrench_hat__moment_0;
+  My_hat = wrench_hat.external_wrench_hat__moment_1;
+  Mz_hat = wrench_hat.external_wrench_hat__moment_2;
+  Fx_hat = wrench_hat.external_wrench_hat__force_0;
+  Fy_hat = wrench_hat.external_wrench_hat__force_1;
+  Fz_hat = wrench_hat.external_wrench_hat__force_2;
+
+Mx_cmd = wrench_cmd_gt.external_wrench_cmd__moment_0;
+My_cmd = wrench_cmd_gt.external_wrench_cmd__moment_1;
+Mz_cmd = wrench_cmd_gt.external_wrench_cmd__moment_2;
+Fx_cmd = wrench_cmd_gt.external_wrench_cmd__force_0;
+Fy_cmd = wrench_cmd_gt.external_wrench_cmd__force_1;
+Fz_cmd = wrench_cmd_gt.external_wrench_cmd__force_2;
+figure("Name", "External Wrench Cmd vs Wrench Hat", "Color", "w");
+sgtitle("External Wrench Cmd vs Wrench Hat", "FontSize", 12, "FontWeight", "bold");
+subplot(3,2,1);
+plot(te_cmd, Mx_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, Mx_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Mx", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,2,3);
+plot(te_cmd, My_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, My_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("My", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,2,5);
+plot(te_cmd, Mz_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, Mz_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Mz", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,2,2);
+plot(te_cmd, Fx_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, Fx_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fx", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,2,4);
+plot(te_cmd, Fy_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, Fy_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fy", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");
+subplot(3,2,6);
+plot(te_cmd, Fz_cmd, "-", "LineWidth", 1.5, "DisplayName", "external\_wrench\_cmd"); hold on;
+plot(te_hat, Fz_hat, ":", "LineWidth", 1.5, "DisplayName", "wrench\_hat");
+grid on;
+xlabel("time [s]", "FontSize", 10, "FontWeight", "bold");
+ylabel("Fz", "FontSize", 10, "FontWeight", "bold");
+legend("Location", "northeast");

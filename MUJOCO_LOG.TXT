@@ -199,3 +199,48 @@ WARNING: Nan, Inf or huge value in QACC at DOF 9. The simulation is unstable. Ti
 Fri Apr  3 13:04:16 2026
 WARNING: Nan, Inf or huge value in QACC at DOF 6. The simulation is unstable. Time = 1987.7525.
 
+Sun Apr 12 19:24:17 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 8. The simulation is unstable. Time = 43.9525.
+
+Sun Apr 12 20:11:47 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 7. The simulation is unstable. Time = 52.3550.
+
+Sun Apr 12 20:25:23 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 62.7400.
+
+Sun Apr 12 22:16:15 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 76.2750.
+
+Sun Apr 12 23:22:53 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 48.5325.
+
+Mon Apr 13 17:18:30 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 90.0800.
+
+Wed Apr 15 10:50:25 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 198.7300.
+
+Wed Apr 15 11:15:48 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 27.0575.
+
+Wed Apr 15 16:25:47 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 2.5300.
+
+Wed Apr 15 16:25:58 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 2.1125.
+
+Wed Apr 15 16:26:18 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 6. The simulation is unstable. Time = 2.2500.
+
+Thu Apr 16 11:07:23 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 2. The simulation is unstable. Time = 335.1825.
+
+Thu Apr 16 14:41:46 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 1370.1225.
+
+Thu Apr 16 14:43:39 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 1. The simulation is unstable. Time = 102.6300.
+
+Thu Apr 16 14:44:53 2026
+WARNING: Nan, Inf or huge value in QACC at DOF 6. The simulation is unstable. Time = 1.7150.
+

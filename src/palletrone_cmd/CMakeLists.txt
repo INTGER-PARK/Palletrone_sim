@@ -18,8 +18,15 @@ ament_target_dependencies(attitude_sweep_cmd
   palletrone_interfaces
 )
 
+add_executable(external_wrench_cmd src/external_wrench_cmd.cpp)
+ament_target_dependencies(external_wrench_cmd
+  rclcpp
+  palletrone_interfaces
+)
+
 install(TARGETS
   attitude_sweep_cmd
+  external_wrench_cmd
   DESTINATION lib/${PROJECT_NAME}
 )
 install(TARGETS position_cmd

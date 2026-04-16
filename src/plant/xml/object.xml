@@ -1,0 +1,59 @@
+<mujoco model="object">
+  <worldbody>
+    <body name="object_support" pos="0.9 0 0.5" quat="1 0 0 0">
+      <geom
+        name="object_support_vis"
+        type="box"
+        size="0.05 0.05 0.5"
+        rgba="0.45 0.45 0.45 1"
+        contype="0"
+        conaffinity="0"/>
+      <geom
+        name="object_support_col"
+        type="box"
+        size="0.05 0.05 0.5"
+        rgba="0.45 0.45 0.45 0.25"
+        contype="1"
+        conaffinity="1"
+        condim="6"
+        friction="1.2 0.03 0.01"
+        solref="-800 -80"
+        solimp="0.9 0.96 0.002"
+        margin="0.005"/>
+    </body>
+
+    <body name="object" pos="0.9 0 1.2" quat="1 0 0 0">
+      <freejoint name="object_freejoint"/>
+
+      <!--
+        Cube object template for palletrone-object-palm grasp tests.
+        size is half-extent, so 0.03 means a 6 cm cube.
+      -->
+      <inertial
+        pos="0 0 0"
+        mass="0.15"
+        diaginertia="0.00009 0.00009 0.00009"/>
+
+      <geom
+        name="object_vis"
+        type="box"
+        size="0.4 0.4 0.2"
+        rgba="0.2 0.6 0.9 1"
+        contype="0"
+        conaffinity="0"/>
+
+      <geom
+        name="object_col"
+        type="box"
+        size="0.4 0.4 0.2"
+        rgba="0.2 0.6 0.9 0.25"
+        contype="1"
+        conaffinity="1"
+        condim="6"
+        friction="1.2 0.03 0.01"
+        solref="-800 -80"
+        solimp="0.9 0.96 0.002"
+        margin="0.005"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,6 +1,6 @@
 <mujoco model="palm">
   <worldbody>
-    <body name="hand_palm" mocap="true" pos="0.55 0 0.5" quat="1 0 0 0">
+    <body name="hand_palm" mocap="true" pos="1.4 0 1.0" quat="1 0 0 0">
       <geom
         name="hand_palm_vis"
         type="box"
@@ -16,10 +16,10 @@
         contype="1"
         conaffinity="1"
         condim="6"
-        friction="5.0 0.1 0.1"
-        solref="-2000 -40"
-        solimp="0.99 0.999 0.0001"
-        margin="0.002"
+        friction="1.2 0.03 0.01"
+        solref="-800 -80"
+        solimp="0.9 0.96 0.002"
+        margin="0.005"
         group="3"/>
     </body>
   </worldbody>

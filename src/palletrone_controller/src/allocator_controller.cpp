@@ -24,7 +24,7 @@ public:
   static constexpr double r_z = 0.075;
   static constexpr double max_motor_thrust = 50;
   static constexpr double max_motor_speed = std::sqrt(max_motor_thrust / k_thrust);
-  static constexpr double servo_limit_deg = 60.0;
+  static constexpr double servo_limit_deg = 90.0;
   static constexpr double servo_limit_rad = servo_limit_deg * deg_to_rad;
   static constexpr double servo_limit_sin = 1.0;
 

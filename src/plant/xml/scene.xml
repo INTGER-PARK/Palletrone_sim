@@ -1,6 +1,7 @@
 <mujoco model="Palletrone">
   <include file="Palletrone.xml"/>
   <include file="palm.xml"/>
+  <include file="object.xml"/>
 
   <visual>
     <headlight diffuse="0.9 0.9 0.9" ambient="0.1 0.1 0.1" specular="0 0 0"/>

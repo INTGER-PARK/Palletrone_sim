@@ -8,6 +8,7 @@ find_package(std_msgs REQUIRED)
 set(msg_files
   "msg/Input.msg"
   "msg/PalletroneState.msg"
+  "msg/MobObserverInput.msg"
   "msg/Cmd.msg"
   "msg/Wrench.msg"
   "msg/AttitudeCmd.msg"

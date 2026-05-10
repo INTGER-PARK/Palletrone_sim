@@ -23,9 +23,14 @@ ament_target_dependencies(allocator_controller rclcpp palletrone_interfaces)
 target_link_libraries(allocator_controller Eigen3::Eigen)
 
 # wrench_observer
-add_executable(wrench_observer src/wrench_observer.cpp)
-ament_target_dependencies(wrench_observer rclcpp palletrone_interfaces)
-target_link_libraries(wrench_observer Eigen3::Eigen)
+add_executable(first_wrench_observer src/first_wrench_observer.cpp)
+ament_target_dependencies(first_wrench_observer rclcpp palletrone_interfaces)
+target_link_libraries(first_wrench_observer Eigen3::Eigen)
+
+# second_wrench_observer
+add_executable(second_wrench_observer src/second_wrench_observer.cpp)
+ament_target_dependencies(second_wrench_observer rclcpp palletrone_interfaces)
+target_link_libraries(second_wrench_observer Eigen3::Eigen)
 
 # ekf_state_estimator
 add_executable(ekf_state_estimator src/ekf_state_estimator.cpp)
@@ -35,7 +40,8 @@ target_link_libraries(ekf_state_estimator Eigen3::Eigen)
 install(TARGETS
   wrench_controller
   allocator_controller
-  wrench_observer
+  first_wrench_observer
+  second_wrench_observer
   ekf_state_estimator
   DESTINATION lib/${PROJECT_NAME}
 )

@@ -56,8 +56,7 @@ def generate_launch_description():
             # MoB/wrench_observer is intentionally not launched here.
             # Start it manually when needed:
             #   ros2 run palletrone_controller wrench_observer
-            # It publishes /external_wrench_hat for monitoring. Enable compensation explicitly
-            # on wrench_controller after tuning.
+            # It publishes /external_wrench_hat for monitoring only.
             on_start=[wrench_controller, allocator_controller, ekf_state_estimator]
         )
     )

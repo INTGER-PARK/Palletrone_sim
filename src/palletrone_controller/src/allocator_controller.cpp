@@ -199,15 +199,15 @@ private:
 
     double pcx = Pc_(0), pcy = Pc_(1), pcz = Pc_(2);
 
-    A1(0,0) = inv_sqrt2 * ( zeta +  r_z - pcz) * s1 + ( +r - pcy) * c1;
-    A1(0,1) = inv_sqrt2 * (-zeta -  r_z + pcz) * s2 + ( +r - pcy) * c2;
-    A1(0,2) = inv_sqrt2 * (-zeta -  r_z + pcz) * s3 + ( -r - pcy) * c3;
-    A1(0,3) = inv_sqrt2 * ( zeta +  r_z - pcz) * s4 + ( -r - pcy) * c4;
+    A1(0,0) = inv_sqrt2 * ( zeta +  r_z - pcz) * s1 + ( +l_arm/sqrt(2) - pcy) * c1; //
+    A1(0,1) = inv_sqrt2 * (-zeta -  r_z + pcz) * s2 + ( +l_arm/sqrt(2) - pcy) * c2;
+    A1(0,2) = inv_sqrt2 * (-zeta -  r_z + pcz) * s3 + ( -l_arm/sqrt(2) - pcy) * c3;
+    A1(0,3) = inv_sqrt2 * ( zeta +  r_z - pcz) * s4 + ( -l_arm/sqrt(2) - pcy) * c4;
 
-    A1(1,0) = inv_sqrt2 * (-zeta +  r_z - pcz) * s1 + ( -r + pcx) * c1;
-    A1(1,1) = inv_sqrt2 * (-zeta +  r_z - pcz) * s2 + ( +r + pcx) * c2;
-    A1(1,2) = inv_sqrt2 * ( zeta -  r_z + pcz) * s3 + ( +r + pcx) * c3;
-    A1(1,3) = inv_sqrt2 * ( zeta -  r_z + pcz) * s4 + ( -r + pcx) * c4;
+    A1(1,0) = inv_sqrt2 * (-zeta +  r_z - pcz) * s1 + ( -l_arm/sqrt(2) + pcx) * c1;
+    A1(1,1) = inv_sqrt2 * (-zeta +  r_z - pcz) * s2 + ( +l_arm/sqrt(2) + pcx) * c2;
+    A1(1,2) = inv_sqrt2 * ( zeta -  r_z + pcz) * s3 + ( +l_arm/sqrt(2) + pcx) * c3;
+    A1(1,3) = inv_sqrt2 * ( zeta -  r_z + pcz) * s4 + ( -l_arm/sqrt(2) + pcx) * c4;
 
     A1(2,0) =  zeta * c1;
     A1(2,1) = -zeta * c2;
@@ -222,7 +222,7 @@ private:
     return A1;
   }
 
-  Eigen::Matrix4d calc_A2(const Eigen::Vector4d& C1, const Eigen::Vector4d& C2) 
+  Eigen::Matrix4d calc_A2(const Eigen::Vector4d& C1, const Eigen::Vector4d& C2)
   {
     Eigen::Matrix4d A2;
 
